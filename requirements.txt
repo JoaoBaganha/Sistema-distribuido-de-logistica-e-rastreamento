@@ -1,0 +1,9 @@
+# Requisitos do Sistema de Rastreamento de Palma
+# Versão inicial: sem dependências externas
+# Python 3.7+
+
+# Apenas a stdlib é necessária para esta versão:
+# - socket: para comunicação TCP
+# - json: para serialização
+# - datetime: para timestamps
+# - pathlib: para manipulação de caminhos
