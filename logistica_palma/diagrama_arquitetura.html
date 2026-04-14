@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Arquitetura Distribuída — Logística da Palma</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;700;900&display=swap');
+
+  :root {
+    --bg:        #050d12;
+    --panel:     #0a1a22;
+    --border:    #0e3a4a;
+    --accent:    #00e5ff;
+    --accent2:   #00ff99;
+    --accent3:   #ff6b35;
+    --warn:      #ffcc00;
+    --muted:     #3a6070;
+    --text:      #b8d8e0;
+    --textdim:   #4a7a8a;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    font-family: 'Exo 2', sans-serif;
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(0,229,255,0.07) 0%, transparent 70%),
+      linear-gradient(180deg, #050d12 0%, #071520 100%);
+  }
+
+  /* ── GRID BACKGROUND ─────────────────────────────────── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrap {
+    position: relative;
+    z-index: 1;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 40px 24px 60px;
+  }
+
+  /* ── HEADER ──────────────────────────────────────────── */
+  header {
+    text-align: center;
+    margin-bottom: 48px;
+  }
+  header .badge {
+    display: inline-block;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    padding: 4px 14px;
+    margin-bottom: 16px;
+    text-transform: uppercase;
+    opacity: 0.8;
+  }
+  header h1 {
+    font-size: clamp(22px, 4vw, 36px);
+    font-weight: 900;
+    color: #fff;
+    letter-spacing: 1px;
+    line-height: 1.2;
+  }
+  header h1 span { color: var(--accent); }
+  header p {
+    margin-top: 10px;
+    font-size: 13px;
+    color: var(--textdim);
+    font-family: 'Share Tech Mono', monospace;
+    letter-spacing: 1px;
+  }
+
+  /* ── LAYER LABELS ────────────────────────────────────── */
+  .layer-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+    padding-left: 4px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .layer-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, var(--border), transparent);
+  }
+
+  /* ── NODE CARDS ──────────────────────────────────────── */
+  .nodes-row {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 0;
+  }
+
+  .node {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px 20px;
+    width: 195px;
+    position: relative;
+    transition: border-color 0.25s, box-shadow 0.25s, transform 0.25s;
+    cursor: default;
+  }
+  .node:hover {
+    border-color: var(--accent);
+    box-shadow: 0 0 20px rgba(0,229,255,0.12), inset 0 0 20px rgba(0,229,255,0.03);
+    transform: translateY(-3px);
+  }
+  .node::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    border-radius: 8px 8px 0 0;
+    background: var(--node-color, var(--accent));
+  }
+
+  .node-icon {
+    font-size: 26px;
+    margin-bottom: 10px;
+    display: block;
+  }
+  .node-title {
+    font-weight: 700;
+    font-size: 13px;
+    color: #fff;
+    margin-bottom: 4px;
+  }
+  .node-sub {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--textdim);
+    margin-bottom: 10px;
+  }
+  .node-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+  .tag {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    padding: 2px 7px;
+    border-radius: 3px;
+    background: rgba(0,229,255,0.07);
+    border: 1px solid rgba(0,229,255,0.15);
+    color: var(--accent);
+    letter-spacing: 0.5px;
+  }
+  .tag.green  { color: var(--accent2); background: rgba(0,255,153,0.07); border-color: rgba(0,255,153,0.2); }
+  .tag.orange { color: var(--accent3); background: rgba(255,107,53,0.07); border-color: rgba(255,107,53,0.2); }
+  .tag.yellow { color: var(--warn);    background: rgba(255,204,0,0.07);  border-color: rgba(255,204,0,0.2); }
+
+  /* ── ARROW CONNECTOR ─────────────────────────────────── */
+  .connector {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 6px 0;
+    gap: 0;
+  }
+  .conn-line {
+    width: 2px;
+    height: 24px;
+    background: linear-gradient(180deg, var(--border) 0%, var(--accent) 100%);
+    position: relative;
+  }
+  .conn-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--accent);
+    letter-spacing: 1px;
+    background: var(--bg);
+    padding: 0 8px;
+    position: relative;
+    z-index: 1;
+    margin: 3px 0;
+  }
+  .conn-arrow {
+    width: 0;
+    height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 8px solid var(--accent);
+  }
+
+  /* ── SERVER CARD ─────────────────────────────────────── */
+  .server-card {
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    border-radius: 10px;
+    padding: 28px 32px;
+    position: relative;
+    box-shadow: 0 0 40px rgba(0,229,255,0.08);
+    margin-bottom: 0;
+  }
+  .server-card::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, rgba(0,229,255,0.1) 0%, transparent 50%);
+    pointer-events: none;
+  }
+  .server-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .server-icon { font-size: 36px; }
+  .server-title { font-size: 20px; font-weight: 900; color: #fff; }
+  .server-file {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    margin-top: 2px;
+  }
+
+  .modules-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+  }
+  .module {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px 16px;
+    transition: border-color 0.2s;
+  }
+  .module:hover { border-color: var(--accent2); }
+  .module-name {
+    font-weight: 700;
+    font-size: 12px;
+    color: var(--accent2);
+    margin-bottom: 6px;
+  }
+  .module-desc {
+    font-size: 11px;
+    color: var(--textdim);
+    line-height: 1.5;
+  }
+
+  /* ── PROTOCOL TABLE ──────────────────────────────────── */
+  .proto-section {
+    margin-top: 40px;
+  }
+  .proto-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  @media(max-width: 600px) { .proto-grid { grid-template-columns: 1fr; } }
+
+  .proto-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+  }
+  .proto-card h3 {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    font-family: 'Share Tech Mono', monospace;
+  }
+  .proto-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 7px 0;
+    border-bottom: 1px solid rgba(14,58,74,0.5);
+    gap: 12px;
+  }
+  .proto-row:last-child { border-bottom: none; }
+  .proto-key {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--textdim);
+    letter-spacing: 0.5px;
+    flex-shrink: 0;
+    min-width: 120px;
+  }
+  .proto-val {
+    font-size: 11px;
+    color: var(--text);
+    text-align: right;
+  }
+
+  /* ── FLOW SECTION ────────────────────────────────────── */
+  .flow-section { margin-top: 40px; }
+  .flow-row {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 16px;
+  }
+  .flow-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+  .flow-box {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 18px;
+    text-align: center;
+    min-width: 110px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .flow-box:hover {
+    border-color: var(--accent2);
+    box-shadow: 0 0 12px rgba(0,255,153,0.1);
+  }
+  .flow-box-icon { font-size: 20px; margin-bottom: 4px; }
+  .flow-box-name { font-size: 11px; font-weight: 700; color: #fff; }
+  .flow-box-type {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    color: var(--textdim);
+    margin-top: 2px;
+  }
+  .flow-arrow {
+    font-size: 18px;
+    color: var(--accent);
+    padding: 0 6px;
+    padding-bottom: 16px;
+  }
+
+  /* ── LEGEND ──────────────────────────────────────────── */
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    margin-top: 36px;
+    padding: 20px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--text);
+  }
+  .legend-dot {
+    width: 10px; height: 10px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  /* ── PULSE ANIMATION ─────────────────────────────────── */
+  @keyframes pulse-border {
+    0%, 100% { box-shadow: 0 0 8px rgba(0,229,255,0.08); }
+    50%       { box-shadow: 0 0 20px rgba(0,229,255,0.2); }
+  }
+  .server-card { animation: pulse-border 4s ease-in-out infinite; }
+
+  @keyframes fade-in-up {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .wrap > * {
+    animation: fade-in-up 0.5s ease both;
+  }
+  .wrap > *:nth-child(1) { animation-delay: 0.05s; }
+  .wrap > *:nth-child(2) { animation-delay: 0.12s; }
+  .wrap > *:nth-child(3) { animation-delay: 0.18s; }
+  .wrap > *:nth-child(4) { animation-delay: 0.24s; }
+  .wrap > *:nth-child(5) { animation-delay: 0.30s; }
+  .wrap > *:nth-child(6) { animation-delay: 0.36s; }
+  .wrap > *:nth-child(7) { animation-delay: 0.42s; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- HEADER -->
+  <header>
+    <div class="badge">Diagrama de Arquitetura</div>
+    <h1>Sistema Distribuído de<br><span>Logística e Rastreamento</span></h1>
+    <p>Cadeia da Palma · TCP Sockets · Multi-threaded · Python 3</p>
+  </header>
+
+  <!-- CAMADA 1 — AGENTES -->
+  <div class="layer-label">Nível 1 — Agentes Distribuídos (agent.py)</div>
+  <div class="nodes-row">
+
+    <div class="node" style="--node-color:#00ff99">
+      <span class="node-icon">🌿</span>
+      <div class="node-title">campo_norte</div>
+      <div class="node-sub">agent.py --tipo campo</div>
+      <div class="node-tags">
+        <span class="tag green">lote_criado</span>
+        <span class="tag green">coleta</span>
+        <span class="tag green">carregamento</span>
+      </div>
+    </div>
+
+    <div class="node" style="--node-color:#ff6b35">
+      <span class="node-icon">🚛</span>
+      <div class="node-title">transportadora_1</div>
+      <div class="node-sub">agent.py --tipo transportadora</div>
+      <div class="node-tags">
+        <span class="tag orange">em_transporte</span>
+        <span class="tag orange">localização</span>
+        <span class="tag yellow">atraso</span>
+      </div>
+    </div>
+
+    <div class="node" style="--node-color:#00e5ff">
+      <span class="node-icon">🏭</span>
+      <div class="node-title">centro_consolidacao</div>
+      <div class="node-sub">agent.py --tipo centro</div>
+      <div class="node-tags">
+        <span class="tag">chegada_centro</span>
+        <span class="tag">saida_centro</span>
+      </div>
+    </div>
+
+    <div class="node" style="--node-color:#ffcc00">
+      <span class="node-icon">⚙️</span>
+      <div class="node-title">usina_belem</div>
+      <div class="node-sub">agent.py --tipo usina</div>
+      <div class="node-tags">
+        <span class="tag yellow">chegada_usina</span>
+        <span class="tag yellow">entrega_concluida</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- FILA DE REENVIO -->
+  <div style="text-align:center; margin: 10px 0 4px;">
+    <span style="font-family:'Share Tech Mono',monospace; font-size:10px; color:var(--accent3); letter-spacing:1px;">
+      📦 Fila local de reenvio (retry até 5×, intervalo 5s) — tolerância a falha de servidor
+    </span>
+  </div>
+
+  <!-- CONNECTOR 1 -->
+  <div class="connector">
+    <div class="conn-line"></div>
+    <div class="conn-label">▼ TCP · JSON · Header 8 bytes · porta 5000 ▼</div>
+    <div class="conn-line"></div>
+    <div class="conn-arrow"></div>
+  </div>
+
+  <!-- CAMADA 2 — SERVIDOR -->
+  <div class="layer-label">Nível 2 — Servidor Central (server.py)</div>
+  <div class="server-card">
+    <div class="server-header">
+      <span class="server-icon">🖥️</span>
+      <div>
+        <div class="server-title">Servidor TCP Central</div>
+        <div class="server-file">server.py · 127.0.0.1:5000 · threading.Thread por conexão</div>
+      </div>
+    </div>
+    <div class="modules-grid">
+      <div class="module">
+        <div class="module-name">Dispatcher</div>
+        <div class="module-desc">Aceita conexões simultâneas. 1 thread por agente. Lock protege estado compartilhado.</div>
+      </div>
+      <div class="module">
+        <div class="module-name">Processador de Eventos</div>
+        <div class="module-desc">Atualiza <code style="color:var(--accent);font-size:10px">estado_lotes</code> e <code style="color:var(--accent);font-size:10px">historico</code>. Detecta alertas de atraso e falha.</div>
+      </div>
+      <div class="module">
+        <div class="module-name">Persistência</div>
+        <div class="module-desc">Salva em <code style="color:var(--accent2);font-size:10px">logs/lotes.json</code> após cada evento. Restaura estado no reinício.</div>
+      </div>
+      <div class="module">
+        <div class="module-name">Resposta a Consultas</div>
+        <div class="module-desc">Responde: estado atual, histórico, listagem de lotes e métricas de desempenho.</div>
+      </div>
+      <div class="module">
+        <div class="module-name">Detecção de Anomalias</div>
+        <div class="module-desc">Registra alertas em <code style="color:var(--warn);font-size:10px">estado_lotes[alertas]</code> para eventos críticos.</div>
+      </div>
+      <div class="module">
+        <div class="module-name">Métricas</div>
+        <div class="module-desc">Conta eventos, alertas, tempo médio de resposta e conexões ativas em tempo real.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONNECTOR 2 -->
+  <div class="connector">
+    <div class="conn-line"></div>
+    <div class="conn-label">▼ TCP · Consultas (estado / histórico / métricas) ▼</div>
+    <div class="conn-line"></div>
+    <div class="conn-arrow"></div>
+  </div>
+
+  <!-- CAMADA 3 — CLIENTE -->
+  <div class="layer-label">Nível 3 — Console do Operador (client.py)</div>
+  <div class="nodes-row" style="justify-content:flex-start; gap:16px;">
+
+    <div class="node" style="--node-color:#b48aff; width:220px;">
+      <span class="node-icon">🖥️</span>
+      <div class="node-title">client.py</div>
+      <div class="node-sub">Console interativo</div>
+      <div class="node-tags">
+        <span class="tag" style="color:#b48aff; border-color:rgba(180,138,255,0.3)">listar lotes</span>
+        <span class="tag" style="color:#b48aff; border-color:rgba(180,138,255,0.3)">ver estado</span>
+        <span class="tag" style="color:#b48aff; border-color:rgba(180,138,255,0.3)">histórico</span>
+        <span class="tag" style="color:#b48aff; border-color:rgba(180,138,255,0.3)">métricas</span>
+      </div>
+    </div>
+
+    <div class="node" style="--node-color:#ff8800; width:220px;">
+      <span class="node-icon">📊</span>
+      <div class="node-title">teste_carga.py</div>
+      <div class="node-sub">Testes experimentais</div>
+      <div class="node-tags">
+        <span class="tag orange">sequencial</span>
+        <span class="tag orange">concorrente</span>
+        <span class="tag orange">vazão</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- FLUXO LOGÍSTICO -->
+  <div class="flow-section">
+    <div class="layer-label">Fluxo Logístico dos Lotes</div>
+    <div class="flow-row">
+      <div class="flow-step">
+        <div class="flow-box">
+          <div class="flow-box-icon">🌿</div>
+          <div class="flow-box-name">Campo</div>
+          <div class="flow-box-type">lote_criado<br>coleta</div>
+        </div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="flow-box">
+          <div class="flow-box-icon">🚛</div>
+          <div class="flow-box-name">Transporte</div>
+          <div class="flow-box-type">em_transporte<br>localização</div>
+        </div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="flow-box">
+          <div class="flow-box-icon">🏭</div>
+          <div class="flow-box-name">Centro</div>
+          <div class="flow-box-type">chegada<br>saída</div>
+        </div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="flow-box">
+          <div class="flow-box-icon">⚙️</div>
+          <div class="flow-box-name">Usina</div>
+          <div class="flow-box-type">chegada<br>entrega_concluida</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROTOCOLO + MECANISMOS -->
+  <div class="proto-section">
+    <div class="layer-label">Protocolo &amp; Mecanismos Distribuídos</div>
+    <div class="proto-grid">
+
+      <div class="proto-card">
+        <h3>Protocolo TCP/JSON</h3>
+        <div class="proto-row">
+          <span class="proto-key">Transporte</span>
+          <span class="proto-val">TCP (confiável, ordenado)</span>
+        </div>
+        <div class="proto-row">
+          <span class="proto-key">Serialização</span>
+          <span class="proto-val">JSON · UTF-8</span>
+        </div>
+        <div class="proto-row">
+          <span class="proto-key">Framing</span>
+          <span class="proto-val">Header 8 bytes (big-endian)</span>
+        </div>
+        <div class="proto-row">
+          <span class="proto-key">Porta</span>
+          <span class="proto-val">5000</span>
+        </div>
+        <div class="proto-row">
+          <span class="proto-key">Por quê TCP e não UDP?</span>
+          <span class="proto-val">Eventos logísticos não podem ser perdidos</span>
+        </div>
+      </div>
+
+      <div class="proto-card">
+        <h3>Mecanismos Distribuídos</h3>
+        <div class="proto-row">
+          <span class="proto-key">Concorrência</span>
+          <span class="proto-val">threading.Thread por conexão</span>
+        </div>
+        <div class="proto-row">
+          <span class="proto-key">Consistência</span>
+          <span class="proto-val">threading.Lock no estado global</span>
+        </div>
+        <div class="proto-row">
+          <span class="proto-key">Tolerância a falhas</span>
+          <span class="proto-val">Fila local + retry automático</span>
+        </div>
+        <div class="proto-row">
+          <span class="proto-key">Persistência</span>
+          <span class="proto-val">lotes.json · restaurado no reinício</span>
+        </div>
+        <div class="proto-row">
+          <span class="proto-key">Detecção de anomalia</span>
+          <span class="proto-val">alertas em eventos críticos</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- LEGENDA -->
+  <div class="legend">
+    <div class="legend-item">
+      <div class="legend-dot" style="background:var(--accent2)"></div>
+      Nós de campo / coleta
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:var(--accent3)"></div>
+      Transporte / logística
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:var(--accent)"></div>
+      Servidor central
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#b48aff"></div>
+      Console / consultas
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:var(--warn)"></div>
+      Eventos de alerta
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:var(--accent3); opacity:0.6"></div>
+      Fila de reenvio (retry)
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

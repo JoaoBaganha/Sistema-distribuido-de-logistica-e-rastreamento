@@ -1,0 +1,169 @@
+{
+  "estado_lotes": {
+    "L001": {
+      "status_atual": "entrega_concluida",
+      "ultimo_timestamp": "2026-04-14T11:27:18",
+      "origem_agente": "usina_belem",
+      "alertas": []
+    }
+  },
+  "historico": {
+    "L001": [
+      {
+        "tipo_evento": "lote_criado",
+        "timestamp": "2026-04-14T11:08:07",
+        "agente": "campo_norte",
+        "detalhes": {
+          "descricao": "Lote registrado no sistema"
+        }
+      },
+      {
+        "tipo_evento": "coleta_realizada",
+        "timestamp": "2026-04-14T11:08:08",
+        "agente": "campo_norte",
+        "detalhes": {
+          "peso_kg": 1506
+        }
+      },
+      {
+        "tipo_evento": "carregamento_iniciado",
+        "timestamp": "2026-04-14T11:08:08",
+        "agente": "campo_norte",
+        "detalhes": {
+          "veiculo": "CAM-78"
+        }
+      },
+      {
+        "tipo_evento": "em_transporte",
+        "timestamp": "2026-04-14T11:08:09",
+        "agente": "campo_norte",
+        "detalhes": {
+          "velocidade_kmh": 72
+        }
+      },
+      {
+        "tipo_evento": "atualizacao_localizacao",
+        "timestamp": "2026-04-14T11:08:09",
+        "agente": "campo_norte",
+        "detalhes": {
+          "lat": -1.4594771385569365,
+          "lon": -48.56234784310905
+        }
+      },
+      {
+        "tipo_evento": "lote_criado",
+        "timestamp": "2026-04-14T11:10:55",
+        "agente": "campo_norte",
+        "detalhes": {
+          "descricao": "Lote registrado no sistema"
+        }
+      },
+      {
+        "tipo_evento": "coleta_realizada",
+        "timestamp": "2026-04-14T11:10:56",
+        "agente": "campo_norte",
+        "detalhes": {
+          "peso_kg": 1444
+        }
+      },
+      {
+        "tipo_evento": "carregamento_iniciado",
+        "timestamp": "2026-04-14T11:10:56",
+        "agente": "campo_norte",
+        "detalhes": {
+          "veiculo": "CAM-31"
+        }
+      },
+      {
+        "tipo_evento": "em_transporte",
+        "timestamp": "2026-04-14T11:10:57",
+        "agente": "campo_norte",
+        "detalhes": {
+          "velocidade_kmh": 55
+        }
+      },
+      {
+        "tipo_evento": "atualizacao_localizacao",
+        "timestamp": "2026-04-14T11:10:57",
+        "agente": "campo_norte",
+        "detalhes": {
+          "lat": -1.4470502335879059,
+          "lon": -48.45819216239782
+        }
+      },
+      {
+        "tipo_evento": "lote_criado",
+        "timestamp": "2026-04-14T11:25:33",
+        "agente": "campo_norte",
+        "detalhes": {
+          "descricao": "Lote registrado no sistema"
+        }
+      },
+      {
+        "tipo_evento": "coleta_realizada",
+        "timestamp": "2026-04-14T11:25:33",
+        "agente": "campo_norte",
+        "detalhes": {
+          "peso_kg": 1293
+        }
+      },
+      {
+        "tipo_evento": "carregamento_iniciado",
+        "timestamp": "2026-04-14T11:25:34",
+        "agente": "campo_norte",
+        "detalhes": {
+          "veiculo": "CAM-93"
+        }
+      },
+      {
+        "tipo_evento": "em_transporte",
+        "timestamp": "2026-04-14T11:25:34",
+        "agente": "campo_norte",
+        "detalhes": {
+          "velocidade_kmh": 42
+        }
+      },
+      {
+        "tipo_evento": "atualizacao_localizacao",
+        "timestamp": "2026-04-14T11:25:35",
+        "agente": "campo_norte",
+        "detalhes": {
+          "lat": -1.4435920020692623,
+          "lon": -48.437090746437036
+        }
+      },
+      {
+        "tipo_evento": "chegada_centro",
+        "timestamp": "2026-04-14T11:27:17",
+        "agente": "usina_belem",
+        "detalhes": {
+          "local": "Centro de Consolidação Norte"
+        }
+      },
+      {
+        "tipo_evento": "saida_centro",
+        "timestamp": "2026-04-14T11:27:17",
+        "agente": "usina_belem",
+        "detalhes": {
+          "conferido_por": "Op. Joao"
+        }
+      },
+      {
+        "tipo_evento": "chegada_usina",
+        "timestamp": "2026-04-14T11:27:18",
+        "agente": "usina_belem",
+        "detalhes": {
+          "linha_producao": 1
+        }
+      },
+      {
+        "tipo_evento": "entrega_concluida",
+        "timestamp": "2026-04-14T11:27:18",
+        "agente": "usina_belem",
+        "detalhes": {
+          "nota_fiscal": "NF-9662"
+        }
+      }
+    ]
+  }
+}

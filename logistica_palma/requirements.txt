@@ -1,0 +1,2 @@
+# Sistema Distribuído de Logística e Rastreamento — Cadeia da Palma
+# Sem dependências externas — apenas biblioteca padrão Python 3.7+
