@@ -1,154 +1,219 @@
 """
-Agente cliente para o sistema de rastreamento de lotes de palma.
+agent.py — Agente distribuído com fila de reenvio
+Sistema Distribuído de Logística e Rastreamento — Cadeia da Palma
 
-Responsabilidades:
-- Conectar ao servidor central via TCP
-- Montar eventos em formato JSON
-- Enviar eventos para o servidor
-- Receber confirmação
+Cada agente representa um nó logístico (campo, transportadora, centro, usina).
+Possui fila local: eventos não entregues são reenviados automaticamente.
 """
 
 import socket
+import time
+import random
+import threading
+import queue
 import sys
-from pathlib import Path
+import os
+import argparse
 
-# Adiciona o diretório src ao path para importar common
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, os.path.dirname(__file__))
+from common import HOST, PORT, send_msg, recv_msg, get_logger, now_iso
 
-from common import (
-    DEFAULT_HOST,
-    DEFAULT_PORT,
-    BUFFER_SIZE,
-    criar_evento,
-    formatar_log
-)
+# ─── Configuração ────────────────────────────────────────────────────────────
+RETRY_INTERVAL   = 5    # segundos entre tentativas de reenvio
+MAX_RETRIES      = 5    # máximo de tentativas por evento
+TIMEOUT_CONEXAO  = 4    # segundos de timeout no socket
 
+# ─── Agente ──────────────────────────────────────────────────────────────────
 
 class Agente:
-    """
-    Agente cliente que se conecta ao servidor e envia eventos.
-    """
+    def __init__(self, nome: str, tipo: str):
+        self.nome   = nome
+        self.tipo   = tipo  # campo | transportadora | centro | usina
+        self.logger = get_logger(f"AGENTE:{nome}")
+        self.fila_pendente: queue.Queue = queue.Queue()
+        self._stop = threading.Event()
 
-    def __init__(self, nome_agente, host=DEFAULT_HOST, porta=DEFAULT_PORT):
-        """
-        Inicializa o agente com seu nome e dados de conexão.
+        # Inicia thread de reenvio em background
+        t = threading.Thread(target=self._worker_reenvio, daemon=True)
+        t.start()
 
-        Args:
-            nome_agente: Nome identificador do agente (ex: "campo_norte")
-            host: Endereço do servidor (padrão: 127.0.0.1)
-            porta: Porta do servidor (padrão: 5000)
-        """
-        self.nome_agente = nome_agente
-        self.host = host
-        self.porta = porta
+    # ── Envio de um evento ao servidor ───────────────────────────────────────
+    def enviar_evento(self, id_lote: str, tipo_evento: str, detalhes: dict = None) -> dict | None:
+        payload = {
+            "tipo_mensagem": "evento",
+            "id_lote":       id_lote,
+            "tipo_evento":   tipo_evento,
+            "origem_agente": self.nome,
+            "timestamp":     now_iso(),
+            "detalhes":      detalhes or {},
+        }
+        resposta = self._tentar_envio(payload)
+        if resposta is None:
+            self.logger.warning(f"Servidor indisponível — evento enfileirado: {tipo_evento}")
+            self.fila_pendente.put({"payload": payload, "tentativas": 0})
+        return resposta
 
-    def conectar_e_enviar_evento(self, id_lote, tipo_evento, detalhes=None):
-        """
-        Conecta ao servidor e envia um evento.
+    # ── Consulta ao servidor ─────────────────────────────────────────────────
+    def consultar_estado(self, id_lote: str) -> dict | None:
+        return self._tentar_envio({
+            "tipo_mensagem": "consulta",
+            "tipo_consulta": "estado",
+            "id_lote": id_lote,
+        })
 
-        Args:
-            id_lote: Identificador do lote
-            tipo_evento: Tipo do evento a ser enviado
-            detalhes: Dicionário com informações adicionais (opcional)
+    def consultar_historico(self, id_lote: str) -> dict | None:
+        return self._tentar_envio({
+            "tipo_mensagem": "consulta",
+            "tipo_consulta": "historico",
+            "id_lote": id_lote,
+        })
 
-        Returns:
-            bool: True se sucesso, False caso contrário
-        """
-        socket_cliente = None
+    def listar_lotes(self) -> dict | None:
+        return self._tentar_envio({
+            "tipo_mensagem": "consulta",
+            "tipo_consulta": "listar",
+        })
 
+    # ── Envio com abertura/fechamento de socket por mensagem ─────────────────
+    def _tentar_envio(self, payload: dict) -> dict | None:
         try:
-            # Cria o evento em formato JSON
-            evento_json = criar_evento(
-                id_lote=id_lote,
-                tipo_evento=tipo_evento,
-                origem_agente=self.nome_agente,
-                detalhes=detalhes
-            )
+            with socket.create_connection((HOST, PORT), timeout=TIMEOUT_CONEXAO) as sock:
+                send_msg(sock, payload)
+                resposta = recv_msg(sock)
+                return resposta
+        except (ConnectionRefusedError, TimeoutError, OSError) as e:
+            self.logger.debug(f"Falha de conexão: {e}")
+            return None
 
-            print(formatar_log("INFO", f"Agente {self.nome_agente} inicializando..."))
-            print(formatar_log("DEBUG", f"Evento preparado: {evento_json}"))
+    # ── Worker de reenvio (roda em background) ────────────────────────────────
+    def _worker_reenvio(self):
+        while not self._stop.is_set():
+            time.sleep(RETRY_INTERVAL)
+            itens = []
+            while not self.fila_pendente.empty():
+                try:
+                    itens.append(self.fila_pendente.get_nowait())
+                except queue.Empty:
+                    break
 
-            # Cria socket TCP
-            socket_cliente = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-            # Conecta ao servidor
-            print(
-                formatar_log(
-                    "INFO",
-                    f"Conectando ao servidor {self.host}:{self.porta}..."
+            for item in itens:
+                item["tentativas"] += 1
+                self.logger.info(
+                    f"Tentativa de reenvio {item['tentativas']}/{MAX_RETRIES} "
+                    f"— lote {item['payload'].get('id_lote')}"
                 )
-            )
-            socket_cliente.connect((self.host, self.porta))
-            print(formatar_log("INFO", "Conectado ao servidor!"))
+                resposta = self._tentar_envio(item["payload"])
+                if resposta is None:
+                    if item["tentativas"] < MAX_RETRIES:
+                        self.fila_pendente.put(item)
+                    else:
+                        self.logger.error(
+                            f"Evento descartado após {MAX_RETRIES} tentativas: "
+                            f"{item['payload'].get('tipo_evento')}"
+                        )
+                else:
+                    self.logger.info(f"Reenvio bem-sucedido: {item['payload'].get('tipo_evento')}")
 
-            # Envia o evento
-            socket_cliente.sendall(evento_json.encode("utf-8"))
-            print(formatar_log("INFO", "Evento enviado com sucesso!"))
+    def parar(self):
+        self._stop.set()
 
-            # Recebe confirmação do servidor
-            confirmacao = socket_cliente.recv(BUFFER_SIZE).decode("utf-8")
-            print(formatar_log("INFO", f"Confirmação do servidor: {confirmacao}"))
 
-            return True
+# ─── Simulação de fluxo completo ─────────────────────────────────────────────
 
-        except ConnectionRefusedError:
-            print(
-                formatar_log(
-                    "ERROR",
-                    f"Erro: Não conseguiu conectar ao servidor em "
-                    f"{self.host}:{self.porta}. "
-                    f"Verifique se o servidor está rodando."
-                )
-            )
-            return False
-        except Exception as e:
-            print(formatar_log("ERROR", f"Erro ao enviar evento: {str(e)}"))
-            return False
-        finally:
-            if socket_cliente:
-                socket_cliente.close()
-                print(formatar_log("DEBUG", "Socket fechado"))
+def simular_fluxo_campo(agente: Agente, id_lote: str):
+    """Simula o fluxo de um lote de palma saindo do campo."""
+    logger = agente.logger
 
+    print("\n" + "="*60)
+    print(f"  AGENTE: {agente.nome} ({agente.tipo})  |  LOTE: {id_lote}")
+    print("="*60)
+
+    etapas = [
+        ("lote_criado",           {"descricao": "Lote registrado no sistema"}),
+        ("coleta_realizada",      {"peso_kg": random.randint(800, 2000)}),
+        ("carregamento_iniciado", {"veiculo": f"CAM-{random.randint(10,99)}"}),
+        ("em_transporte",         {"velocidade_kmh": random.randint(40, 80)}),
+        ("atualizacao_localizacao", {"lat": -1.45 + random.uniform(-0.1, 0.1),
+                                     "lon": -48.5 + random.uniform(-0.1, 0.1)}),
+    ]
+
+    # Simulação de atraso aleatório (10% de chance)
+    if random.random() < 0.10:
+        etapas.append(("atraso_registrado", {"motivo": "Estrada interditada"}))
+
+    for tipo_evento, detalhes in etapas:
+        print(f"\n>>> Enviando evento: {tipo_evento}")
+        resp = agente.enviar_evento(id_lote, tipo_evento, detalhes)
+        if resp:
+            status = resp.get("status")
+            alertas = resp.get("alertas", [])
+            print(f"    Resposta: {status}", end="")
+            if alertas:
+                print(f"  ALERTA: {alertas[0]['tipo']}", end="")
+            print()
+        else:
+            print("    Servidor indisponível — enfileirado para reenvio")
+        time.sleep(0.5)
+
+
+def simular_fluxo_usina(agente: Agente, id_lote: str):
+    """Simula o recebimento na usina."""
+    print("\n" + "="*60)
+    print(f"  AGENTE: {agente.nome} ({agente.tipo})  |  LOTE: {id_lote}")
+    print("="*60)
+
+    etapas = [
+        ("chegada_centro",    {"local": "Centro de Consolidação Norte"}),
+        ("saida_centro",      {"conferido_por": "Op. Joao"}),
+        ("chegada_usina",     {"linha_producao": random.randint(1, 4)}),
+        ("entrega_concluida", {"nota_fiscal": f"NF-{random.randint(1000,9999)}"}),
+    ]
+
+    for tipo_evento, detalhes in etapas:
+        print(f"\n>>> Enviando evento: {tipo_evento}")
+        resp = agente.enviar_evento(id_lote, tipo_evento, detalhes)
+        if resp:
+            print(f"    Resposta: {resp.get('status')}")
+        else:
+            print("    Servidor indisponível — enfileirado para reenvio")
+        time.sleep(0.5)
+
+
+# ─── Entrypoint ──────────────────────────────────────────────────────────────
 
 def main():
-    """
-    Função principal para executar um agente de exemplo.
-    """
-    # Cria um agente de campo
-    agente = Agente(nome_agente="campo_norte")
+    parser = argparse.ArgumentParser(description="Agente de Logística — Cadeia da Palma")
+    parser.add_argument("--nome",  default="campo_norte",
+                        help="Nome do agente (ex: campo_norte, usina_belem)")
+    parser.add_argument("--tipo",  default="campo",
+                        choices=["campo", "transportadora", "centro", "usina"],
+                        help="Tipo do nó logístico")
+    parser.add_argument("--lote",  default="L001",
+                        help="ID do lote a rastrear (ex: L001, L002)")
+    parser.add_argument("--modo",  default="campo",
+                        choices=["campo", "usina"],
+                        help="Modo de simulação")
+    args = parser.parse_args()
 
-    print("="*60)
-    print("AGENTE DE RASTREAMENTO - SISTEMA DE PALMA")
-    print("="*60 + "\n")
+    agente = Agente(nome=args.nome, tipo=args.tipo)
 
-    # Envia primeiro evento: criação do lote
-    print(">>> Enviando evento: Criação de lote")
-    sucesso = agente.conectar_e_enviar_evento(
-        id_lote="L001",
-        tipo_evento="criacao_lote",
-        detalhes={"peso_kg": 5000, "origem": "campo"}
-    )
+    try:
+        if args.modo == "campo":
+            simular_fluxo_campo(agente, args.lote)
+        else:
+            simular_fluxo_usina(agente, args.lote)
 
-    if sucesso:
-        print(formatar_log("INFO", "Evento de criação processado com sucesso!\n"))
+        # Aguarda reenvios pendentes
+        time.sleep(2)
+        pendentes = agente.fila_pendente.qsize()
+        if pendentes > 0:
+            print(f"\n Aguardando reenvio de {pendentes} evento(s) pendente(s)...")
+            time.sleep(RETRY_INTERVAL + 2)
 
-        # Envia segundo evento: coleta realizada
-        print(">>> Enviando evento: Coleta realizada")
-        sucesso = agente.conectar_e_enviar_evento(
-            id_lote="L001",
-            tipo_evento="coleta_realizada",
-            detalhes={"peso_kg": 1200}
-        )
-
-        if sucesso:
-            print(formatar_log("INFO", "Evento de coleta processado com sucesso!\n"))
-    else:
-        print(formatar_log("ERROR", "Falha ao enviar eventos"))
-        sys.exit(1)
-
-    print("="*60)
-    print("Todos os eventos foram enviados com sucesso!")
-    print("="*60)
+    except KeyboardInterrupt:
+        print("\n\nAgente encerrado.")
+    finally:
+        agente.parar()
 
 
 if __name__ == "__main__":

@@ -1,62 +1,47 @@
 # Sistema Distribuído de Logística e Rastreamento — Cadeia da Palma
 
-## Visão Geral
-
-Este é um sistema distribuído inicial para simular o rastreamento logístico de lotes da cadeia da palma. O sistema permite que múltiplos agentes distribuídos enviem eventos de localização ou status para um servidor central, que mantém o estado atual e o histórico de cada lote.
-
-O projeto foi estruturado de forma incremental e extensível, servindo como base para evoluções futuras.
-
-## Características da Versão Inicial
-
-- **Comunicação em rede**: Usa sockets TCP para comunicação cliente-servidor confiável
-- **Formato de mensagem**: JSON para estruturação e legibilidade
-- **Armazenamento simples**: Em memória, com estruturas básicas de histórico e estado
-- **Logs mínimos**: Exibição no terminal para depuração
-- **Código organizado**: Estrutura preparada para expansão futura
-
-## Fluxo Logístico
-
-O sistema rastreia lotes de palma ao longo deste fluxo:
-
-```
-campo → transporte → centro de consolidação → usina
-```
-
-Cada lote pode gerar eventos como:
-- Criação, coleta, carregamento, transporte, atualização de localização, chegada, saída, atraso, falha e entrega
-
-## Requisitos
-
-- Python 3.7 ou superior
-- Não há dependências externas nesta versão inicial
-
 ## Estrutura do Projeto
 
 ```
-projeto-palma-distribuido/
-├── README.md                  # Este arquivo
-├── requirements.txt           # Dependências Python
+logistica_palma/
+├── README.md
+├── requirements.txt
 ├── src/
-│   ├── server.py             # Servidor TCP central
-│   ├── agent.py              # Agente cliente (exemplo)
-│   └── common.py             # Funções e constantes compartilhadas
-└── docs/
-    └── arquitetura-inicial.md # Documentação técnica
+│   ├── common.py          # Funções compartilhadas (protocolo, logger)
+│   ├── server.py          # Servidor TCP central (multi-threaded)
+│   ├── agent.py           # Agente distribuído (com fila de reenvio)
+│   ├── client.py          # Console interativo de consultas
+│   └── teste_carga.py     # Testes experimentais de desempenho
+├── docs/
+│   └── arquitetura.md     # Documentação técnica completa
+└── logs/
+    └── lotes.json         # Gerado automaticamente (persistência)
 ```
 
-## Instalação e Execução
+## Como Executar no VS Code
 
-### 1. Instalar Dependências
+### Pré-requisito
+- Python 3.7 ou superior instalado
+- Sem dependências externas (apenas stdlib)
 
-```bash
-pip install -r requirements.txt
+---
+
+### Passo 1 — Abrir o projeto
+
+Abra a pasta `logistica_palma` no VS Code:
+```
+Arquivo → Abrir Pasta → selecione logistica_palma/
 ```
 
-(Na versão inicial, não há dependências externas)
+---
 
-### 2. Executar o Servidor
+### Passo 2 — Abrir terminais (você precisará de pelo menos 3)
 
-Em um terminal:
+No VS Code: `Terminal → Novo Terminal` (repita para cada terminal necessário).
+
+---
+
+### Passo 3 — Iniciar o servidor (Terminal 1)
 
 ```bash
 python src/server.py
@@ -64,101 +49,82 @@ python src/server.py
 
 Saída esperada:
 ```
-[2026-04-13 10:00:00] INFO     Servidor iniciado em 127.0.0.1:5000
-[2026-04-13 10:00:00] INFO     Aguardando conexões...
+[2026-04-14 10:00:00] INFO     Servidor iniciado em 127.0.0.1:5000
+[2026-04-14 10:00:00] INFO     Aguardando conexões... (Ctrl+C para encerrar)
 ```
 
-### 3. Executar um Agente (em outro terminal)
+---
+
+### Passo 4 — Executar agentes (Terminal 2, 3, ...)
+
+Agente do campo (lote L001):
+```bash
+python src/agent.py --nome campo_norte --tipo campo --lote L001 --modo campo
+```
+
+Agente da usina (lote L001, depois do campo ter enviado):
+```bash
+python src/agent.py --nome usina_belem --tipo usina --lote L001 --modo usina
+```
+
+Agente de outro campo (lote diferente, simultâneo):
+```bash
+python src/agent.py --nome campo_sul --tipo campo --lote L002 --modo campo
+```
+
+---
+
+### Passo 5 — Consultar o sistema (Terminal 4)
 
 ```bash
-python src/agent.py
+python src/client.py
 ```
 
-Saída esperada:
+Menu interativo:
 ```
-============================================================
-AGENTE DE RASTREAMENTO - SISTEMA DE PALMA
-============================================================
-
->>> Enviando evento: Criação de lote
-[2026-04-13 10:00:01] INFO     Agente campo_norte inicializando...
-[2026-04-13 10:00:01] DEBUG    Evento preparado: {"id_lote": "L001", ...}
-[2026-04-13 10:00:01] INFO     Conectando ao servidor 127.0.0.1:5000...
-[2026-04-13 10:00:01] INFO     Conectado ao servidor!
-[2026-04-13 10:00:01] INFO     Evento enviado com sucesso!
-[2026-04-13 10:00:01] INFO     Confirmação do servidor: {"status": "recebido", ...}
-[2026-04-13 10:00:01] INFO     Evento de criação processado com sucesso!
-
->>> Enviando evento: Coleta realizada
-...
+1. Listar todos os lotes
+2. Ver estado atual de um lote
+3. Ver histórico completo de um lote
+4. Ver métricas de desempenho do servidor
+0. Sair
 ```
 
-No servidor, você verá:
-```
-[2026-04-13 10:00:01] INFO     Aguardando conexão de agente...
-[2026-04-13 10:00:01] INFO     Conexão recebida de ('127.0.0.1', 54321)
-[2026-04-13 10:00:01] INFO     Dados recebidos: {"id_lote": "L001", ...}
-[2026-04-13 10:00:01] INFO     Lote L001 atualizado: criado
-[2026-04-13 10:00:01] INFO     Evento processado para lote L001
-```
+---
 
-## Modelo de Dados
+### Passo 6 — Testes experimentais (Terminal 5)
 
-### Evento
-
-```json
-{
-  "id_lote": "L001",
-  "tipo_evento": "coleta_realizada",
-  "origem_agente": "campo_norte",
-  "timestamp": "2026-04-13T10:00:00",
-  "detalhes": {
-    "peso_kg": 1200
-  }
-}
+Com o servidor rodando:
+```bash
+python src/teste_carga.py
 ```
 
-### Estado de um Lote (armazenado no servidor)
+Executa 3 cenários automaticamente e exibe: tempo mínimo, máximo, médio, desvio padrão e vazão.
 
-```python
-estado_lotes = {
-    "L001": {
-        "status_atual": "coleta_realizada",
-        "ultimo_timestamp": "2026-04-13T10:00:00",
-        "origem_agente": "campo_norte"
-    }
-}
-```
+---
 
-## Próximas Evoluções
+## Testando Tolerância a Falhas
 
-As seguintes melhorias estão planejadas:
+### Simulando servidor offline
+1. Inicie o servidor normalmente
+2. Inicie um agente
+3. **Durante a execução do agente**, pressione Ctrl+C no servidor
+4. O agente exibirá: *"Servidor indisponível — enfileirado para reenvio"*
+5. Reinicie o servidor: `python src/server.py`
+6. Em até 5 segundos, o agente reenvia automaticamente
 
-1. Suporte para múltiplos agentes simultâneos (threading)
-2. Persistência em arquivo ou banco de dados
-3. Fila local nos agentes para reenvio em caso de falha
-4. Mecanismo de consultas explícitas ao estado
-5. Réplica de eventos ou sincronização entre servidores
-6. Testes de carga e performance
-7. Interface web simples para visualização
-8. Protocolo de comunicação mais robusto
+### Verificando persistência
+1. Execute agentes normalmente
+2. Encerre o servidor (Ctrl+C)
+3. Reinicie o servidor
+4. Use `client.py` → os lotes ainda estão lá (carregados de `logs/lotes.json`)
 
-## Limitações da Versão Inicial
+---
 
-- Um agente por vez
-- Armazenamento apenas em memória
-- Sem criptografia
-- Sem mecanismo de reenvio automático
-- Sem tratamento para mensagens fora de ordem
+## Parâmetros do Agente
 
-## Arquitetura Técnica
-
-Veja [`docs/arquitetura-inicial.md`](docs/arquitetura-inicial.md) para detalhes técnicos da arquitetura, decisões de design e fluxo de implementação.
-
-## Contribuições
-
-Este é um projeto acadêmico de demonstração de sistemas distribuídos.
-
-## Licença
-
-Este projeto é fornecido como é para fins educacionais.
+| Parâmetro | Valores               | Descrição                     |
+|-----------|-----------------------|-------------------------------|
+| --nome    | qualquer string       | Identificador do agente       |
+| --tipo    | campo/transportadora/centro/usina | Tipo do nó      |
+| --lote    | L001, L002, ...       | ID do lote rastreado          |
+| --modo    | campo / usina         | Sequência de eventos a enviar |
