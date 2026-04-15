@@ -212,8 +212,21 @@ def main():
 
     server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server_sock.bind((HOST, PORT))
-    server_sock.listen(10)
+    
+    try:
+        server_sock.bind((HOST, PORT))
+        logger.info(f"✓ Socket vinculado a {HOST}:{PORT}")
+    except OSError as e:
+        logger.error(f"✗ Falha ao vincular socket: {e}")
+        logger.error(f"  Verifique se a porta {PORT} está em uso ou permissões insuficientes.")
+        return
+    
+    try:
+        server_sock.listen(10)
+        logger.info(f"✓ Servidor escutando com fila de até 10 conexões")
+    except OSError as e:
+        logger.error(f"✗ Falha ao colocar em escuta: {e}")
+        return
 
     logger.info(f"Servidor iniciado em {HOST}:{PORT}")
     logger.info("Aguardando conexões... (Ctrl+C para encerrar)")
@@ -228,6 +241,7 @@ def main():
         logger.info("Servidor encerrado pelo usuário.")
     finally:
         server_sock.close()
+        logger.info("Socket fechado.")
 
 
 if __name__ == "__main__":

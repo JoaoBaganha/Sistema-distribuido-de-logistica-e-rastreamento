@@ -81,8 +81,17 @@ class Agente:
                 send_msg(sock, payload)
                 resposta = recv_msg(sock)
                 return resposta
-        except (ConnectionRefusedError, TimeoutError, OSError) as e:
-            self.logger.debug(f"Falha de conexão: {e}")
+        except ConnectionRefusedError as e:
+            self.logger.error(f"✗ Conexão recusada em {HOST}:{PORT} — servidor não está escutando?")
+            self.logger.debug(f"  Detalhes: {e}")
+            return None
+        except TimeoutError as e:
+            self.logger.error(f"✗ Timeout de conexão após {TIMEOUT_CONEXAO}s em {HOST}:{PORT}")
+            self.logger.debug(f"  Detalhes: {e}")
+            return None
+        except OSError as e:
+            self.logger.error(f"✗ Erro de rede: {e}")
+            self.logger.debug(f"  HOST={HOST}, PORT={PORT}")
             return None
 
     # ── Worker de reenvio (roda em background) ────────────────────────────────
